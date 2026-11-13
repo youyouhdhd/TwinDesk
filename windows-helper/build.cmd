@@ -58,3 +58,5 @@ rem The virtual camera (windows/vcam.js), C++: built when Visual Studio's C++ to
 call "%~dp0vcam\build.cmd" || exit /b 1
 rem Real gamepad (windows/gamepad.js: Remote), C++ likewise.
 call "%~dp0pad\build.cmd" || exit /b 1
+rem WGC preserves accessibility cursor size; desktop pixels go to Electron as shared GPU textures.
+call "%~dp0capture\build.cmd" || exit /b 1

@@ -89,6 +89,11 @@ async function main() {
   const multiHelper = path.join(ROOT, 'windows-helper', 'bin', 'macshare-winhelper-multi.exe');
   if (fs.existsSync(multiHelper)) copy(multiHelper, path.join(STAGE, 'windows-helper', 'bin', 'macshare-winhelper-multi.exe'));
   else console.log('note: no windows-helper/bin/macshare-winhelper-multi.exe — Multi-device uses the one-to-one helper (one edge)');
+  for (const a of ARCHS) {
+    const from = path.join(ROOT, 'windows-helper', 'bin', 'twindesk-capture-' + a + '.exe');
+    if (fs.existsSync(from)) copy(from, path.join(STAGE, 'windows-helper', 'bin', path.basename(from)));
+    else console.log('note: no native WGC helper for ' + a + ' — screen capture uses the Chromium fallback');
+  }
   // The calls' sound on this PC (callaudio.js): its .exe, its signed package and that certificate.
   // Not in the Store's MSIX: it has no phone line capabilities (store-manifest.xml).
   for (const f of STORE ? [] : ['macshare-calls.exe', 'twindesk-calls.msix', 'twindesk-calls.cer']) {

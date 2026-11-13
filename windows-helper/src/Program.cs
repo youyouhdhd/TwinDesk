@@ -37,12 +37,17 @@ namespace MacShare
         static int Main(string[] args)
         {
             if (args.Length == 3 && args[0] == "--add-root-device") return Display.AddRootDevice(args[1], args[2]); // elevated, scripts\vdd-install.ps1
-            if (args.Length == 2 && args[0] == "--cursor-guard") return CursorGuard(args[1]);
             // Per-monitor v2: every coordinate is in physical pixels.
             try { if (!Native.SetProcessDpiAwarenessContext(new IntPtr(-4))) Native.SetProcessDPIAware(); }
             catch (Exception) { Native.SetProcessDPIAware(); }
+            if (args.Length == 2 && args[0] == "--cursor-guard") return CursorGuard(args[1]);
             Console.InputEncoding = new UTF8Encoding(false);
             Console.OutputEncoding = new UTF8Encoding(false);
+            if (args.Length == 1 && args[0] == "--recover-cursor")
+            {
+                HideCursor.Recover();
+                return HideCursor.Pending ? 1 : 0;
+            }
             // The mouse hook and the lane's injection run managed code: no blocking full collections
             // (background ones only), so a collection doesn't hold a move or a click.
             try { System.Runtime.GCSettings.LatencyMode = System.Runtime.GCLatencyMode.SustainedLowLatency; } catch (Exception) { }
@@ -63,8 +68,10 @@ namespace MacShare
             Action<double, double> laneMove = injector.Move; // one delegate, not one per move
             Lane.Init(delegate (double x, double y) { smoother.Flush(laneMove); laneMove(x, y); }, Emit); // the input lane (Lane.cs)
             UsbWatch.Init(Emit); // USB plug/unplug events for adb phones (UsbWatch.cs)
-            HideCursor.Restore(); // in case a crash left the cursors blank
+            HideCursor.PrepareRecovery();
+            HideCursor.RecoverIfAlone();
             StartCursorGuard();
+            HideCursor.WaitForGuard();
             capture.Start();
             capture.Flash = new Flash();
             AppWindows.Watch(delegate { Dictionary<string, object> e = new Dictionary<string, object>(); e["event"] = "winShown"; Emit(e); }); // Menus
@@ -89,7 +96,8 @@ namespace MacShare
         // The blank cursor (HideCursor.cs) is system-wide: it outlives this process. A clean exit and a
         // managed exception restore it here, but a hard kill can't (the app crashing takes us down with
         // it: Node's job object terminates its children). So a second copy of this exe waits for us to
-        // end, however we end, and reloads the user's cursors then. Started with ShellExecute: it
+        // end, however we end, and recovers only if a global replacement is still pending.
+        // Started with ShellExecute: it
         // inherits none of our handles (the app's pipes see us close at once) and, as Node's job allows
         // silent breakaway, it is outside that job and lives on when the job is killed.
         static void StartCursorGuard()
@@ -101,22 +109,31 @@ namespace MacShare
                 si.WindowStyle = ProcessWindowStyle.Hidden;
                 Process.Start(si);
             }
-            catch (Exception) { /* no guard: the next helper start still restores the cursors */ }
+            catch (Exception) { /* HideCursor will leave the pointer visible without a ready guard */ }
         }
 
         static int CursorGuard(string pidText)
         {
             int pid;
             if (!int.TryParse(pidText, out pid)) return 1;
-            try { using (Process p = Process.GetProcessById(pid)) p.WaitForExit(); }
-            catch (Exception) { /* already gone */ }
-            HideCursor.Restore();
-            // A UAC prompt or the lock screen in front: try again for a while, until it works.
-            for (int i = 0; i < 120 && HideCursor.Pending; i++)
+            try
             {
-                Thread.Sleep(500);
-                HideCursor.Restore();
+                using (EventWaitHandle recovery = EventWaitHandle.OpenExisting(HideCursor.RecoveryName(pid)))
+                using (EventWaitHandle ready = EventWaitHandle.OpenExisting(HideCursor.ReadyName(pid)))
+                {
+                    ready.Set();
+                    try { using (Process p = Process.GetProcessById(pid)) p.WaitForExit(); }
+                    catch (ArgumentException) { /* already gone */ }
+                    if (!recovery.WaitOne(0)) return 0;
+                    HideCursor.Recover();
+                    for (int i = 0; i < 120 && HideCursor.Pending; i++)
+                    {
+                        Thread.Sleep(500);
+                        HideCursor.Recover();
+                    }
+                }
             }
+            catch (Exception e) { Console.Error.WriteLine("Cursor guard: " + e.Message); return 1; }
             return 0;
         }
 

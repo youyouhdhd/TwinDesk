@@ -160,8 +160,7 @@ class PcScreen {
     this.apply();
   }
 
-  // Stream size: scale down (on the GPU, by the capturer) to at most maxHeight, keeping the shape,
-  // or ('extend') to fit Size, so the picture follows the virtual screen's custom size.
+  // Stream size: scale down in the encoder, after the desktop and pointer are composed.
   _streamSize(rect) {
     const max = this.cfg.maxHeight;
     if (max === 'extend') {
@@ -222,7 +221,7 @@ class PcScreen {
     }
     this._stopSend(true);
     const mbps = this.cfg.mbps; // Share screen › Quality, for phones too
-    const session = this.sender.start({ sourceId: src.id, width, height, mbps, fps, steady, audio: this.cfg.sound, offer: { kind: 'screen' } });
+    const session = this.sender.start({ sourceId: src.id, captureRect: rect, captureWidth: rect.width, captureHeight: rect.height, width, height, mbps, fps, steady, audio: this.cfg.sound, offer: { kind: 'screen' } });
     this.sending = { session, displayId: d.id, rect, key };
     this.stats = null;
     Object.assign(this.status, { status: 'starting', error: '', name: d.label || src.name, width: rect.width, height: rect.height });
