@@ -7,10 +7,12 @@ rem in and the app picks it up the next time it starts the helper.
 setlocal
 set CSC=%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\csc.exe
 set BIN=%~dp0bin
+set "KITS=%ProgramFiles(x86)%\Windows Kits\10\"
+for /f "tokens=2,*" %%a in ('reg query "HKLM\SOFTWARE\Microsoft\Windows Kits\Installed Roots" /v KitsRoot10 2^>nul') do if "%%a"=="REG_SZ" set "KITS=%%b"
 rem Bluetooth LE and Wi-Fi Direct (Ble.cs, Wfd.cs) are WinRT: the Windows SDK's Windows.winmd (the one
 rem .NET's WinRT bridge is built against; System32\WinMetadata's split files don't work with it).
 set UM=
-for /d %%d in ("%ProgramFiles(x86)%\Windows Kits\10\UnionMetadata\10.*") do if exist "%%d\Windows.winmd" set UM=%%d
+for /d %%d in ("%KITS%UnionMetadata\10.*") do if exist "%%d\Windows.winmd" set UM=%%d
 if not defined UM (
   echo The Windows 10/11 SDK is needed ^(Windows Kits\10\UnionMetadata^): install it with Visual Studio Build Tools or the SDK installer.
   exit /b 1

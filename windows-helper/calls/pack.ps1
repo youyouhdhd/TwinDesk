@@ -7,7 +7,9 @@
 param([Parameter(Mandatory = $true)][string]$Bin)
 $ErrorActionPreference = 'Stop'
 
-$kits = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin'
+$sdkRoot = (Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows Kits\Installed Roots' -ErrorAction SilentlyContinue).KitsRoot10
+if (-not $sdkRoot) { $sdkRoot = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10' }
+$kits = Join-Path $sdkRoot 'bin'
 $vers = @(Get-ChildItem $kits -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -like '10.*' } | Sort-Object { [version]$_.Name } -Descending)
 function Tool($name) {
   foreach ($v in $vers) { foreach ($a in 'x64', 'arm64', 'x86') { $p = Join-Path $v.FullName "$a\$name"; if (Test-Path $p) { return $p } } }
